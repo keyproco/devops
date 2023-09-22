@@ -1,0 +1,9 @@
+[tls]
+
+[tls.stores]
+
+[tls.stores.default]
+
+[tls.stores.default.defaultCertificate]
+certFile = "/certs/keyprolab.test-cert.pem"
+keyFile = "/certs/keyprolab.test-key.pem"
