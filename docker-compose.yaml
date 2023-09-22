@@ -1,0 +1,159 @@
+version: '3'
+volumes:
+  portainer_vol: {}
+services:
+  traefik:
+    image: traefik:v2.6.3
+    container_name: "traefik"
+    command:
+      - --providers.docker=true
+      # Enable the API handler in insecure mode,
+      # which means that the Traefik Dashboard will be available directly
+      # on the entry point named traefik.
+      - --api.insecure=true
+      # Defines the path to the configuration file with the certificates list.
+      - --providers.file.filename=/root/.config/ssl.toml
+      # Define Traefik entry points to port [80] for http and port [443] for https.
+      - --entrypoints.web.address=:80
+      - --entrypoints.websecure.address=:443
+    networks:
+      # Define the network on which traefik is going to operate.
+      - web
+    environment:
+      - TZ=Europe/Paris
+    ports:
+      # Open traefik http [80] and https [443] ports.
+      - '80:80'
+      - '443:443'
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount the configuration file with the certificates list.
+      - ./traefik-ssl.toml:/root/.config/ssl.toml
+      # Mount the folder containing the certificates for https.
+      - ~/certs/:/certs/
+    labels:
+      - "traefik.enable=true"
+      # Enable Traefik Dashboard entrypoint on http.
+      - "traefik.http.routers.traefik-http.entrypoints=web"
+      # Define Traefik Dashboard http host.
+      - "traefik.http.routers.traefik-http.rule=Host(`devops.${DOMAIN_BASE_URL}`)"
+      # Define http middleware and redirection to https.
+      - "traefik.http.routers.traefik-http.middlewares=traefik-https"
+      - "traefik.http.middlewares.traefik-https.redirectscheme.scheme=https"
+      # Enable Traefik Dashboard entrypoint on https.
+      - "traefik.http.routers.traefik.entrypoints=websecure"
+      # By default the Traefik Dashboard operates on the port [8080].
+      # Define a load balancer to route the entry point to [8080].
+      - "traefik.http.services.traefik.loadbalancer.server.port=8080"
+      # Define Traefik Dashboard host.
+      - "traefik.http.routers.traefik.rule=Host(`devops.${DOMAIN_BASE_URL}`)"
+      # Instructs Traefik that the current router is dedicated to HTTPS requests only.
+      - "traefik.http.routers.traefik.tls=true"
+  whoami:
+    image: containous/whoami
+    labels:
+      - "traefik.http.routers.whoami.rule=Host(`who.${DOMAIN_BASE_URL}`)"
+      - "traefik.http.routers.whoami.entrypoints=websecure"
+      - "traefik.http.routers.whoami.tls=true"
+    networks:
+      # Define the network on which traefik is going to operate.
+      - web
+  jenkins:
+    container_name: jenkins
+    image: jenkins/jenkins:lts
+    labels:
+      - "traefik.http.routers.jenkins.rule=Host(`jenkins.${DOMAIN_BASE_URL}`)"
+      - "traefik.http.routers.jenkins.entrypoints=websecure"
+      - "traefik.http.routers.jenkins.tls=true"
+    privileged: true
+    user: root
+    networks:
+      # Define the network on which traefik is going to operate.
+      - web
+    volumes:
+      - "$PWD/jenkins:/var/jenkins_home"
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - 8080:8080
+  echo-server:
+    image: ealen/echo-server:0.5.1
+    labels:
+      - "traefik.http.routers.echo.rule=Host(`echo.${DOMAIN_BASE_URL}`)"
+      - "traefik.http.routers.echo.entrypoints=websecure"
+      - "traefik.http.routers.echo.tls=true"
+    networks:
+      - web
+    ports:
+      - 3333:80  
+  coredns:
+    links:
+      - "traefik"
+    build: ./coredns
+    volumes:
+    - ./coredns:/root/
+    ports: 
+      - '53:53/udp'
+    networks:
+      - web
+  # portainer:
+  #   image: portainer/portainer-ce:2.11.1
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.portainer.rule=Host(`portainer.keyprolab.test`)"
+  #     - "traefik.http.routers.portainer.entrypoints=websecure"
+  #     - "traefik.http.routers.portainer-secure.tls=true"
+  #   # ports:
+  #   #   - "8888:8000"
+  #   #   - "9443:9443"
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock
+  #     - portainer_vol:/data portainer/portainer-ce:2.11.1
+  #   networks:
+  #     - web
+  # prometheus:
+  #   image: prom/prometheus
+  #   labels:
+  #     - "traefik.enable=true"
+  #     - "traefik.http.routers.prometheus.rule=Host(`prom.keyprolab.test`)"
+  #     - "traefik.http.routers.prometheus.entrypoints=websecure"
+  #     - "traefik.http.routers.prometheus.tls=true"
+  #   ports:
+  #     - "9090:9090"
+  #   volumes:
+  #     - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+  #   networks:
+  #     - web
+  flask:
+    build: ./flask
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.flask.rule=Host(`flask.keyprolab.test`)"
+      - "traefik.http.routers.flask.entrypoints=websecure"
+      - "traefik.http.routers.flask.tls=true"
+    ports:
+      - "5000:5000"
+    # volumes:
+
+    networks:
+      - web
+  
+  # cloud9:
+  #   image: lscr.io/linuxserver/cloud9
+  #   container_name: cloud9
+  #   environment:
+  #     - PUID=1000
+  #     - PGID=1000
+  #     - TZ=Europe/London
+  #     - GITURL=https://github.com/linuxserver/docker-cloud9.git #optional
+  #     - USERNAME= #optional
+  #     - PASSWORD= #optional
+  #   volumes:
+  #     - ./hello:/code #optional
+  #     - /var/run/docker.sock:/var/run/docker.sock #optional
+  #   ports:
+  #     - 8000:8000
+  #   restart: unless-stopped
+networks:
+  # Define the network on which is going to operate Traefik.
+  web:
+    external: true
