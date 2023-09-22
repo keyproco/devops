@@ -1,0 +1,21 @@
+$ORIGIN keyprolab.test.  ; designates the start of this zone file in the namespace
+$TTL 1h               ; default expiration time of all resource records without their own TTL value
+
+; =============================== Resource Records ==============================
+
+@                 IN  SOA     ns.keyprolab.test. rtiger.keyprolab.test. (
+                                  2020010510     ; Serial
+                                  1d             ; Refresh
+                                  2h             ; Retry
+                                  4w             ; Expire
+                                  1h)            ; Minimum TTL
+@                 IN  A       192.168.1.73       ; Local IPv4 address 
+@                 IN  NS      ns.keyprolab.test.    ; Name server 
+ns                IN  CNAME   @                  ; Alias 
+webblog           IN  CNAME   @                  ; Alias 
+netprint          IN  CNAME   @                  ; Alias 
+devops            IN  CNAME   @                  ; Alias for devops.keyprolab.test
+
+*.keyprolab.test.            IN  A       192.168.1.73       ; Local IPv4 address 
+gitlab.keyprolab.test.            IN  A       192.168.1.101       ; Local IPv4 address 
+registry.gitlab.keyprolab.test.            IN  A       192.168.1.101       ; Local IPv4 address 
